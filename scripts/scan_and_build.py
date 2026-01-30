@@ -346,7 +346,7 @@ def main():
             "<!doctype html>",
             "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
             f"<title>{html_escape(fam)} - Photo Library</title>",
-            "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:24px auto;padding:0 16px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} a{color:inherit;text-decoration:none} .card{border:1px solid #eee;border-radius:12px;padding:12px} .muted{color:#666;font-size:14px}</style>",
+            "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:24px auto;padding:0 16px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px} a{color:inherit;text-decoration:none} .card{border:1px solid #eee;border-radius:12px;overflow:hidden} .card-body{padding:12px} .muted{color:#666;font-size:14px} img{width:100%;height:160px;object-fit:cover;display:block}</style>",
             "</head><body>",
             "<p><a href='../index.html'>← Back</a></p>",
             f"<h1>Series: {html_escape(fam)}</h1>",
@@ -355,9 +355,15 @@ def main():
         for model in sorted(families[fam]):
             count = len(by_model[model])
             href = f"../models/{html_escape(model)}.html"
+            # Use the first photo as thumbnail.
+            first = by_model[model][0]
+            base = Path(first.name).stem
+            thumb = f"../assets/{html_escape(model)}/thumb/{html_escape(base)}.jpg"
             parts.append(
-                f"<div class='card'><a href='{href}'><strong>{html_escape(model)}</strong></a>"
-                f"<div class='muted'>{count} photos</div></div>"
+                f"<div class='card'>"
+                f"<a href='{href}'><img src='{thumb}' loading='lazy' /></a>"
+                f"<div class='card-body'><a href='{href}'><strong>{html_escape(model)}</strong></a>"
+                f"<div class='muted'>{count} photos</div></div></div>"
             )
         parts += ["</div>", "</body></html>"]
         write_file(SITE / "series" / f"{fam}.html", "\n".join(parts))
