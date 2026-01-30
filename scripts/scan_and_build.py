@@ -282,25 +282,65 @@ def main():
     # generate pages
     models = sorted(by_model.keys())
 
+    def family_key(model: str) -> str:
+        # Group like: D5301-xx -> D5301
+        m = re.match(r"^([A-Z]+\d{4})", model.upper())
+        if m:
+            return m.group(1)
+        # fallback: prefix before '-'
+        return model.split("-")[0].upper()
+
+    # group -> models
+    families = defaultdict(list)
+    for model in models:
+        families[family_key(model)].append(model)
+
+    # Index: show families (5301/5302/5303) first
+    fam_names = sorted(families.keys())
     index_parts = [
         "<!doctype html>",
         "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
         "<title>Photo Library</title>",
-        "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:24px auto;padding:0 16px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px} img{width:100%;height:160px;object-fit:cover;border-radius:10px} a{color:inherit} .card{border:1px solid #eee;border-radius:12px;padding:12px}</style>",
+        "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:24px auto;padding:0 16px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} a{color:inherit;text-decoration:none} .card{border:1px solid #eee;border-radius:12px;padding:12px} .muted{color:#666;font-size:14px}</style>",
         "</head><body>",
         "<h1>Photo Library</h1>",
-        "<p>Auto-grouped by detected model (MVP: filename heuristic). Drop images into <code>photo-site/inbox</code> and rebuild.</p>",
-        "<h2>Models</h2>",
+        "<p class='muted'>首页按系列分类（如 D5301 / D5302 / D5303）。点击系列后再进入具体型号查看照片。</p>",
+        "<h2>Series</h2>",
         "<div class='grid'>",
     ]
 
-    for model in models:
-        count = len(by_model[model])
-        href = f"models/{html_escape(model)}.html"
-        index_parts.append(f"<div class='card'><a href='{href}'><strong>{html_escape(model)}</strong></a><div>{count} images</div></div>")
+    for fam in fam_names:
+        total_imgs = sum(len(by_model[m]) for m in families[fam])
+        href = f"series/{html_escape(fam)}.html"
+        index_parts.append(
+            f"<div class='card'><a href='{href}'><strong>{html_escape(fam)}</strong></a>"
+            f"<div class='muted'>{len(families[fam])} models · {total_imgs} photos</div></div>"
+        )
 
     index_parts += ["</div>", "</body></html>"]
     write_file(SITE / "index.html", "\n".join(index_parts))
+
+    # Family pages: list models inside
+    for fam in fam_names:
+        parts = [
+            "<!doctype html>",
+            "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
+            f"<title>{html_escape(fam)} - Photo Library</title>",
+            "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:24px auto;padding:0 16px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} a{color:inherit;text-decoration:none} .card{border:1px solid #eee;border-radius:12px;padding:12px} .muted{color:#666;font-size:14px}</style>",
+            "</head><body>",
+            "<p><a href='../index.html'>← Back</a></p>",
+            f"<h1>Series: {html_escape(fam)}</h1>",
+            "<div class='grid'>",
+        ]
+        for model in sorted(families[fam]):
+            count = len(by_model[model])
+            href = f"../models/{html_escape(model)}.html"
+            parts.append(
+                f"<div class='card'><a href='{href}'><strong>{html_escape(model)}</strong></a>"
+                f"<div class='muted'>{count} photos</div></div>"
+            )
+        parts += ["</div>", "</body></html>"]
+        write_file(SITE / "series" / f"{fam}.html", "\n".join(parts))
 
     for model in models:
         files = by_model[model]
