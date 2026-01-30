@@ -317,8 +317,15 @@ def main():
         for src in files:
             base = Path(src.name).stem
             rel_large = f"../assets/{html_escape(model)}/{html_escape(base)}.jpg"
-            rel_thumb = f"../assets/{html_escape(model)}/thumb/{html_escape(base)}.jpg"
-            page.append(f"<a href='{rel_large}' target='_blank' rel='noopener'><img src='{rel_thumb}' loading='lazy' /></a>")
+            # Directly show the large image inline (no extra click needed).
+            # Keep a link to the file for saving/opening in a new tab.
+            page.append(
+                f"<figure style='margin:0'>"
+                f"<a href='{rel_large}' target='_blank' rel='noopener'>"
+                f"<img src='{rel_large}' loading='lazy' />"
+                f"</a>"
+                f"</figure>"
+            )
         page += ["</div>", "</body></html>"]
         write_file(SITE / "models" / f"{model}.html", "\n".join(page))
 
