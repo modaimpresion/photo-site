@@ -356,7 +356,7 @@ def main():
     index_parts = [
         "<!doctype html>",
         "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
-        "<title>Photo Library</title>",
+        "<title>Moda Impresion 新印象</title>",
         "<style>"
         "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:900px;margin:18px auto;padding:0 14px}"
         ".list{display:flex;flex-direction:column;gap:16px}"
@@ -368,7 +368,7 @@ def main():
         ".card:active{transform:scale(0.99)}"
         "</style>",
         "</head><body>",
-        "<h1>Photo Library</h1>",
+        "<h1>Moda Impresion 新印象</h1>",
         "<p class='muted'>首页先选大类（你可以在 output/category-map.json 手动调整每个型号的归类）。</p>",
         "<h2>Categories</h2>",
         "<div class='list'>",
@@ -394,7 +394,7 @@ def main():
         parts = [
             "<!doctype html>",
             "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
-            f"<title>{html_escape(big)} - Photo Library</title>",
+            f"<title>{html_escape(big)} - Moda Impresion 新印象</title>",
             "<style>"
             "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:900px;margin:18px auto;padding:0 14px}"
             ".list{display:flex;flex-direction:column;gap:16px}"
@@ -443,7 +443,7 @@ def main():
             parts = [
                 "<!doctype html>",
                 "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
-                f"<title>{html_escape(big)} / {html_escape(sub)} - Photo Library</title>",
+                f"<title>{html_escape(big)} / {html_escape(sub)} - Moda Impresion 新印象</title>",
                 "<style>"
                 "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:900px;margin:18px auto;padding:0 14px}"
                 ".list{display:flex;flex-direction:column;gap:16px}"
@@ -486,7 +486,7 @@ def main():
         page = [
             "<!doctype html>",
             "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
-            f"<title>{html_escape(model)} - Photo Library</title>",
+            f"<title>{html_escape(model)} - Moda Impresion 新印象</title>",
             "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:20px auto;padding:0 16px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px} img{width:100%;height:auto;object-fit:cover;border-radius:14px;display:block} a{color:inherit}</style>",
             "</head><body>",
             "<p><a href='../index.html'>← Back</a></p>",
