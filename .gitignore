@@ -1,0 +1,8 @@
+# user uploads
+inbox/
+
+# build artifacts (we publish /docs, keep it tracked)
+output/
+
+# mac
+.DS_Store
