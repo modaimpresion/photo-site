@@ -350,7 +350,7 @@ def main():
         big, sub = classify_model_manual(model, fam, catmap)
         big_map[big][sub].append(model)
 
-    big_names = sorted(big_map.keys())
+    big_names = sorted(big_map.keys(), key=lambda x: (x == "其他", x))
 
     # Index: big categories
     index_parts = [
