@@ -321,10 +321,20 @@ def main():
         "<!doctype html>",
         "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
         "<title>Photo Library</title>",
-        "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:24px auto;padding:0 16px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} a{color:inherit;text-decoration:none} .card{border:1px solid #eee;border-radius:12px;padding:12px} .muted{color:#666;font-size:14px}</style>",
+        "<style>"
+        "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:20px auto;padding:0 16px}"
+        ".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}"
+        ".muted{color:#666;font-size:14px}"
+        ".card{border:1px solid #e9e9e9;border-radius:16px;overflow:hidden;background:#fff}"
+        ".card a{display:block;padding:18px;text-decoration:none;color:inherit}"
+        ".card strong{font-size:20px;letter-spacing:0.2px}"
+        ".card .meta{margin-top:8px}"
+        ".card:active{transform:scale(0.99)}"
+        "@media (max-width:520px){.grid{grid-template-columns:1fr} .card a{padding:20px} .card strong{font-size:22px}}"
+        "</style>",
         "</head><body>",
         "<h1>Photo Library</h1>",
-        "<p class='muted'>首页按系列分类（如 D5301 / D5302 / D5303）。点击系列后再进入具体型号查看照片。</p>",
+        "<p class='muted'>首页按系列分类（如 D5301 / D5302 / D5303）。点大卡片进入系列，再点缩略图看照片。</p>",
         "<h2>Series</h2>",
         "<div class='grid'>",
     ]
@@ -333,8 +343,10 @@ def main():
         total_imgs = sum(len(by_model[m]) for m in families[fam])
         href = f"series/{html_escape(fam)}.html"
         index_parts.append(
-            f"<div class='card'><a href='{href}'><strong>{html_escape(fam)}</strong></a>"
-            f"<div class='muted'>{len(families[fam])} models · {total_imgs} photos</div></div>"
+            f"<div class='card'><a href='{href}'>"
+            f"<strong>{html_escape(fam)}</strong>"
+            f"<div class='meta muted'>{len(families[fam])} models · {total_imgs} photos</div>"
+            f"</a></div>"
         )
 
     index_parts += ["</div>", "</body></html>"]
@@ -346,7 +358,19 @@ def main():
             "<!doctype html>",
             "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
             f"<title>{html_escape(fam)} - Photo Library</title>",
-            "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:24px auto;padding:0 16px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px} a{color:inherit;text-decoration:none} .card{border:1px solid #eee;border-radius:12px;overflow:hidden} .card-body{padding:12px} .muted{color:#666;font-size:14px} img{width:100%;height:160px;object-fit:cover;display:block}</style>",
+            "<style>"
+            "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:20px auto;padding:0 16px}"
+            ".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}"
+            ".muted{color:#666;font-size:14px}"
+            ".card{border:1px solid #e9e9e9;border-radius:16px;overflow:hidden;background:#fff}"
+            ".card a{display:block;text-decoration:none;color:inherit}"
+            ".thumb{display:block}"
+            ".thumb img{width:100%;height:190px;object-fit:cover;display:block}"
+            ".card-body{padding:16px}"
+            ".card-body strong{font-size:18px}"
+            ".card:active{transform:scale(0.99)}"
+            "@media (max-width:520px){.grid{grid-template-columns:1fr} .thumb img{height:220px} .card-body{padding:18px} .card-body strong{font-size:20px}}"
+            "</style>",
             "</head><body>",
             "<p><a href='../index.html'>← Back</a></p>",
             f"<h1>Series: {html_escape(fam)}</h1>",
@@ -361,9 +385,12 @@ def main():
             thumb = f"../assets/{html_escape(model)}/thumb/{html_escape(base)}.jpg"
             parts.append(
                 f"<div class='card'>"
-                f"<a href='{href}'><img src='{thumb}' loading='lazy' /></a>"
-                f"<div class='card-body'><a href='{href}'><strong>{html_escape(model)}</strong></a>"
-                f"<div class='muted'>{count} photos</div></div></div>"
+                f"<a class='thumb' href='{href}'><img src='{thumb}' loading='lazy' /></a>"
+                f"<a class='card-body' href='{href}'>"
+                f"<strong>{html_escape(model)}</strong>"
+                f"<div class='muted'>{count} photos</div>"
+                f"</a>"
+                f"</div>"
             )
         parts += ["</div>", "</body></html>"]
         write_file(SITE / "series" / f"{fam}.html", "\n".join(parts))
@@ -374,7 +401,7 @@ def main():
             "<!doctype html>",
             "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
             f"<title>{html_escape(model)} - Photo Library</title>",
-            "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:24px auto;padding:0 16px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px} img{width:100%;height:200px;object-fit:cover;border-radius:10px}</style>",
+            "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:20px auto;padding:0 16px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px} img{width:100%;height:auto;object-fit:cover;border-radius:14px;display:block} a{color:inherit}</style>",
             "</head><body>",
             "<p><a href='../index.html'>← Back</a></p>",
             f"<h1>Model: {html_escape(model)}</h1>",
