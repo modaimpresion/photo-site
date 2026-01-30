@@ -36,6 +36,14 @@ BARE_MODEL_PREFIX_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9\-_.]{1,32})$")
 OCR_CACHE_PATH = ROOT / "output" / "ocr-cache.json"
 
 
+def sanitize_model_code(model: str) -> str:
+    m = (model or "").strip().upper()
+    m = re.sub(r"[^A-Z0-9._-]+", "-", m)
+    m = re.sub(r"-+", "-", m)
+    m = m.strip("-._")
+    return m or "UNKNOWN"
+
+
 def guess_model_from_filename(name: str) -> str:
     m = MODEL_RE.search(name)
     if m:
@@ -208,22 +216,22 @@ def main():
         reclassified = defaultdict(list)
         unknown_files = tmp_by_model["unknown"]
         # Safety: OCR can be slow; cap per run.
-        OCR_CAP = int(os.environ.get("OCR_CAP", "8"))
+        OCR_CAP = int(os.environ.get("OCR_CAP", "4"))
         for i, src in enumerate(unknown_files[:OCR_CAP], start=1):
             base = Path(src.name).stem
             large_jpg = ASSETS / "unknown" / f"{base}.jpg"
             print(f"OCR {i}/{min(len(unknown_files), OCR_CAP)}: {src.name}", flush=True)
             text = ocr_text_for_image(large_jpg, ocr_cache)
-            new_model = extract_model_from_text(text)
+            new_model = sanitize_model_code(extract_model_from_text(text))
             reclassified[new_model].append(src)
 
         # Anything beyond OCR_CAP remains unknown for now.
         for src in unknown_files[OCR_CAP:]:
-            reclassified["unknown"].append(src)
+            reclassified["UNKNOWN"].append(src)
 
         # Move assets from unknown -> model buckets when we found something.
         for new_model, files in reclassified.items():
-            if new_model == "unknown":
+            if new_model in ("UNKNOWN", "unknown"):
                 continue
             (ASSETS / new_model / "thumb").mkdir(parents=True, exist_ok=True)
             (ASSETS / new_model).mkdir(parents=True, exist_ok=True)
@@ -239,15 +247,35 @@ def main():
                 if src_thumb.exists():
                     shutil.move(str(src_thumb), str(dst_thumb))
 
+        # Rename source files in inbox to <MODEL>.HEIC whenever possible.
+        # This makes future runs deterministic without OCR.
+        for new_model, files in reclassified.items():
+            if new_model in ("UNKNOWN", "unknown"):
+                continue
+            for src in files:
+                if src.suffix.lower() != ".heic":
+                    continue
+                # If already clean name, skip.
+                if src.stem.upper() == new_model:
+                    continue
+                target = INBOX / f"{new_model}.HEIC"
+                if target.exists():
+                    # Avoid collisions.
+                    target = INBOX / f"{new_model}_{src.name}"
+                try:
+                    src.rename(target)
+                except Exception:
+                    pass
+
         # Rebuild by_model mapping based on reclassified results
         by_model = defaultdict(list)
         for model, files in tmp_by_model.items():
             if model != "unknown":
                 for f in files:
-                    by_model[model].append(f)
+                    by_model[sanitize_model_code(model)].append(f)
         for model, files in reclassified.items():
             for f in files:
-                by_model[model].append(f)
+                by_model[sanitize_model_code(model)].append(f)
 
     save_ocr_cache(ocr_cache)
 
