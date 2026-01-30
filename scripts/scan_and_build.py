@@ -37,11 +37,31 @@ OCR_CACHE_PATH = ROOT / "output" / "ocr-cache.json"
 
 
 def sanitize_model_code(model: str) -> str:
+    """Sanitize and normalize model codes.
+
+    Rules (requested by Master Wei):
+    - D5301-1  -> D5301-01
+    - D5301-2  -> D5301-02
+    - D5301-02 -> keep
+    - D5301-10 -> keep
+
+    We apply this to any pattern like <LETTERS><4digits>-<number>.
+    """
     m = (model or "").strip().upper()
     m = re.sub(r"[^A-Z0-9._-]+", "-", m)
     m = re.sub(r"-+", "-", m)
     m = m.strip("-._")
-    return m or "UNKNOWN"
+    if not m:
+        return "UNKNOWN"
+
+    mm = re.match(r"^([A-Z]+\d{4})-(\d+)$", m)
+    if mm:
+        prefix, num = mm.group(1), mm.group(2)
+        if len(num) == 1:
+            num = "0" + num
+        return f"{prefix}-{num}"
+
+    return m
 
 
 def guess_model_from_filename(name: str) -> str:
