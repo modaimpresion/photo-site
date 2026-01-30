@@ -395,19 +395,42 @@ def main():
             "<!doctype html>",
             "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
             f"<title>{html_escape(big)} - Photo Library</title>",
-            "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:900px;margin:18px auto;padding:0 14px} .list{display:flex;flex-direction:column;gap:16px} .card{border:1px solid #e9e9e9;border-radius:18px;overflow:hidden;background:#fff} .card a{display:block;padding:20px;text-decoration:none;color:inherit} .card strong{font-size:22px} .muted{color:#666;font-size:14px;margin-top:6px} .card:active{transform:scale(0.99)}</style>",
+            "<style>"
+            "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:900px;margin:18px auto;padding:0 14px}"
+            ".list{display:flex;flex-direction:column;gap:16px}"
+            ".muted{color:#666;font-size:14px}"
+            ".card{border:1px solid #e9e9e9;border-radius:18px;overflow:hidden;background:#fff}"
+            ".card-link{display:block;text-decoration:none;color:inherit}"
+            ".thumb img{width:100%;height:240px;object-fit:cover;display:block}"
+            ".body{padding:20px}"
+            ".body strong{font-size:24px}"
+            ".body .muted{margin-top:6px}"
+            ".card:active{transform:scale(0.99)}"
+            "</style>",
             "</head><body>",
             "<p><a href='../index.html'>← Back</a></p>",
             f"<h1>{html_escape(big)}</h1>",
             "<div class='list'>",
         ]
         for sub in subs:
-            total_imgs = sum(len(by_model[m]) for m in big_map[big][sub])
+            models_in_sub = sorted(big_map[big][sub])
+            total_imgs = sum(len(by_model[m]) for m in models_in_sub)
             href = f"{html_escape(big)}/{html_escape(sub)}.html"
+
+            # Thumbnail for the "folder": use the first photo of the first model.
+            first_model = models_in_sub[0]
+            first_photo = by_model[first_model][0]
+            base = Path(first_photo.name).stem
+            thumb = f"../assets/{html_escape(first_model)}/thumb/{html_escape(base)}.jpg"
+
             parts.append(
-                f"<div class='card'><a href='{href}'>"
+                f"<div class='card'>"
+                f"<a class='card-link' href='{href}'>"
+                f"<div class='thumb'><img src='{thumb}' loading='lazy' /></div>"
+                f"<div class='body'>"
                 f"<strong>{html_escape(sub)}</strong>"
-                f"<div class='muted'>{len(big_map[big][sub])} models · {total_imgs} photos</div>"
+                f"<div class='muted'>{len(models_in_sub)} models · {total_imgs} photos</div>"
+                f"</div>"
                 f"</a></div>"
             )
         parts += ["</div>", "</body></html>"]
