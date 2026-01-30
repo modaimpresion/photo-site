@@ -26,20 +26,30 @@ ASSETS = SITE / "assets"
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
 
-MODEL_RE = re.compile(r"(?i)(?:model|型号|type)[\s_\-:]*([A-Za-z0-9][A-Za-z0-9\-_.]{1,32})")
+MODEL_RE = re.compile(r"(?i)(?:model|型号|type)[\s_\-:：]*([A-Za-z0-9][A-Za-z0-9\-_.]{1,32})")
+
+# Cache OCR results to avoid rescanning the same files every build.
+OCR_CACHE_PATH = ROOT / "output" / "ocr-cache.json"
 
 
 def guess_model_from_filename(name: str) -> str:
     m = MODEL_RE.search(name)
     if m:
         return m.group(1)
-    # common pattern: MODEL_xxx.jpg => take prefix before first '_' or '-'
+
     base = Path(name).stem
+
+    # Ignore generic camera roll names.
+    if re.match(r"(?i)^img_\d+$", base):
+        return "unknown"
+
+    # common pattern: MODEL_xxx.jpg => take prefix before first '_' or '-'
     for sep in ("_", "-", " "):
         if sep in base:
             candidate = base.split(sep)[0]
-            if 2 <= len(candidate) <= 40:
+            if 2 <= len(candidate) <= 40 and not re.match(r"(?i)^img$", candidate):
                 return candidate
+
     return "unknown"
 
 
@@ -50,6 +60,71 @@ def html_escape(s: str) -> str:
              .replace('"', "&quot;"))
 
 
+def load_ocr_cache() -> dict:
+    try:
+        if OCR_CACHE_PATH.exists():
+            import json
+            return json.loads(OCR_CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {}
+
+
+def save_ocr_cache(cache: dict) -> None:
+    OCR_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    import json
+    OCR_CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def ocr_text_for_image(path: Path, cache: dict) -> str:
+    """Run macOS Vision OCR (swift script) on the given image.
+
+    We OCR the *published large jpeg* whenever possible for consistency.
+    Cache key: absolute path + mtime.
+    """
+    key = str(path.resolve())
+    mtime = int(path.stat().st_mtime)
+    entry = cache.get(key)
+    if isinstance(entry, dict) and entry.get("mtime") == mtime and isinstance(entry.get("text"), str):
+        return entry["text"]
+
+    swift = ROOT / "scripts" / "ocr_text.swift"
+    cmd = ["/usr/bin/env", "swift", str(swift), str(path)]
+    try:
+        import subprocess
+        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL, timeout=45)
+        text = out.decode("utf-8", errors="ignore")
+    except Exception:
+        text = ""
+
+    cache[key] = {"mtime": mtime, "text": text}
+    return text
+
+
+def extract_model_from_text(text: str) -> str:
+    """Try to extract model from OCR text."""
+    if not text:
+        return "unknown"
+
+    # Normalize a bit
+    t = text.replace("\u3000", " ")
+
+    m = MODEL_RE.search(t)
+    if m:
+        return m.group(1)
+
+    # Extra heuristics: look for common patterns like "ABC-123" near "型号" etc.
+    # Grab short tokens that look like model codes.
+    candidates = re.findall(r"\b[A-Z0-9][A-Z0-9\-_.]{2,20}\b", t.upper())
+    # Filter out too-generic noise
+    blacklist = {"WWW", "HTTP", "HTTPS", "MADE", "CHINA", "APPLE", "IPHONE", "IOS"}
+    candidates = [c for c in candidates if c not in blacklist]
+    if candidates:
+        return candidates[0]
+
+    return "unknown"
+
+
 def write_file(path: Path, content: str):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
@@ -58,6 +133,8 @@ def write_file(path: Path, content: str):
 def main():
     SITE.mkdir(parents=True, exist_ok=True)
     ASSETS.mkdir(parents=True, exist_ok=True)
+
+    ocr_cache = load_ocr_cache()
 
     items = []
     for p in sorted(INBOX.rglob("*")):
@@ -72,7 +149,14 @@ def main():
     # copy + downscale assets for web (keep originals only in inbox)
     # - large: max 1600px
     # - thumb: max 420px
+    # NOTE: We also OCR the large JPEG (Vision) to re-classify "unknown" models.
+
+    # First pass: create assets in a temporary "unknown" bucket for anything we can't name yet.
+    tmp_by_model = defaultdict(list)
     for model, files in by_model.items():
+        tmp_by_model[model].extend(files)
+
+    for model, files in tmp_by_model.items():
         dest_dir = ASSETS / model
         thumb_dir = ASSETS / model / "thumb"
         dest_dir.mkdir(parents=True, exist_ok=True)
@@ -92,7 +176,6 @@ def main():
                 if tmp.exists():
                     tmp.unlink()
                 shutil.copy2(src, tmp)
-                # sips edits in place
                 os.system(f"/usr/bin/sips -s format jpeg --resampleWidth 1600 '{tmp}' >/dev/null")
                 tmp.replace(large_dst)
 
@@ -103,6 +186,54 @@ def main():
                 shutil.copy2(src, tmp)
                 os.system(f"/usr/bin/sips -s format jpeg --resampleWidth 420 '{tmp}' >/dev/null")
                 tmp.replace(thumb_dst)
+
+    # Second pass: OCR images that landed in "unknown" and re-bucket.
+    if "unknown" in tmp_by_model:
+        reclassified = defaultdict(list)
+        unknown_files = tmp_by_model["unknown"]
+        # Safety: OCR can be slow; cap per run.
+        OCR_CAP = int(os.environ.get("OCR_CAP", "8"))
+        for i, src in enumerate(unknown_files[:OCR_CAP], start=1):
+            base = Path(src.name).stem
+            large_jpg = ASSETS / "unknown" / f"{base}.jpg"
+            print(f"OCR {i}/{min(len(unknown_files), OCR_CAP)}: {src.name}", flush=True)
+            text = ocr_text_for_image(large_jpg, ocr_cache)
+            new_model = extract_model_from_text(text)
+            reclassified[new_model].append(src)
+
+        # Anything beyond OCR_CAP remains unknown for now.
+        for src in unknown_files[OCR_CAP:]:
+            reclassified["unknown"].append(src)
+
+        # Move assets from unknown -> model buckets when we found something.
+        for new_model, files in reclassified.items():
+            if new_model == "unknown":
+                continue
+            (ASSETS / new_model / "thumb").mkdir(parents=True, exist_ok=True)
+            (ASSETS / new_model).mkdir(parents=True, exist_ok=True)
+
+            for src in files:
+                base = Path(src.name).stem
+                src_large = ASSETS / "unknown" / f"{base}.jpg"
+                src_thumb = ASSETS / "unknown" / "thumb" / f"{base}.jpg"
+                dst_large = ASSETS / new_model / f"{base}.jpg"
+                dst_thumb = ASSETS / new_model / "thumb" / f"{base}.jpg"
+                if src_large.exists():
+                    shutil.move(str(src_large), str(dst_large))
+                if src_thumb.exists():
+                    shutil.move(str(src_thumb), str(dst_thumb))
+
+        # Rebuild by_model mapping based on reclassified results
+        by_model = defaultdict(list)
+        for model, files in tmp_by_model.items():
+            if model != "unknown":
+                for f in files:
+                    by_model[model].append(f)
+        for model, files in reclassified.items():
+            for f in files:
+                by_model[model].append(f)
+
+    save_ocr_cache(ocr_cache)
 
     # generate pages
     models = sorted(by_model.keys())
@@ -147,7 +278,7 @@ def main():
         page += ["</div>", "</body></html>"]
         write_file(SITE / "models" / f"{model}.html", "\n".join(page))
 
-    print(f"Scanned {len(items)} images across {len(models)} models.")
+    print(f"Scanned {len(items)} images across {len(models)} models.", flush=True)
 
 
 if __name__ == "__main__":
