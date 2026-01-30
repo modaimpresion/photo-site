@@ -113,12 +113,17 @@ def extract_model_from_text(text: str) -> str:
     if m:
         return m.group(1)
 
-    # Extra heuristics: look for common patterns like "ABC-123" near "型号" etc.
-    # Grab short tokens that look like model codes.
-    candidates = re.findall(r"\b[A-Z0-9][A-Z0-9\-_.]{2,20}\b", t.upper())
-    # Filter out too-generic noise
-    blacklist = {"WWW", "HTTP", "HTTPS", "MADE", "CHINA", "APPLE", "IPHONE", "IOS"}
-    candidates = [c for c in candidates if c not in blacklist]
+    # Prefer leading model-like token at the start of the text, e.g. "D5301-1 ..."
+    lead = re.match(r"\s*([A-Z0-9][A-Z0-9\-_.]{2,32})\b", t.upper())
+    if lead:
+        cand = lead.group(1)
+        if not re.match(r"^IMG_\d+$", cand):
+            return cand
+
+    # Extra heuristics: pick short tokens that look like model codes.
+    candidates = re.findall(r"\b[A-Z0-9][A-Z0-9\-_.]{2,32}\b", t.upper())
+    blacklist = {"WWW", "HTTP", "HTTPS", "MADE", "CHINA", "APPLE", "IPHONE", "IOS", "PCS", "S", "M", "L", "XL", "XXL"}
+    candidates = [c for c in candidates if c not in blacklist and not re.match(r"^IMG_\d+$", c)]
     if candidates:
         return candidates[0]
 
