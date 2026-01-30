@@ -34,6 +34,7 @@ BARE_MODEL_PREFIX_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9\-_.]{1,32})$")
 
 # Cache OCR results to avoid rescanning the same files every build.
 OCR_CACHE_PATH = ROOT / "output" / "ocr-cache.json"
+CATEGORY_MAP_PATH = ROOT / "output" / "category-map.json"
 
 
 def sanitize_model_code(model: str) -> str:
@@ -113,6 +114,38 @@ def save_ocr_cache(cache: dict) -> None:
     OCR_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
     import json
     OCR_CACHE_PATH.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def load_category_map() -> dict:
+    """Manual classification map.
+
+    Format:
+    {
+      "defaults": {"big": "套装"},
+      "models": {"D5301-01": {"big": "套装", "sub": "D5301"}}
+    }
+    """
+    try:
+        if CATEGORY_MAP_PATH.exists():
+            import json
+            return json.loads(CATEGORY_MAP_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {"defaults": {"big": "套装"}, "models": {}}
+
+
+def classify_model_manual(model: str, family: str, catmap: dict) -> tuple[str, str]:
+    model = sanitize_model_code(model)
+    family = family.upper()
+    entry = (catmap.get("models") or {}).get(model)
+    if isinstance(entry, dict) and isinstance(entry.get("big"), str):
+        big = entry.get("big")
+        sub = entry.get("sub") if isinstance(entry.get("sub"), str) else family
+        return big, sub
+
+    defaults = catmap.get("defaults") or {}
+    big = defaults.get("big") if isinstance(defaults.get("big"), str) else "套装"
+    return big, family
 
 
 def ocr_text_for_image(path: Path, cache: dict) -> str:
@@ -303,99 +336,127 @@ def main():
     models = sorted(by_model.keys())
 
     def family_key(model: str) -> str:
-        # Group like: D5301-xx -> D5301
         m = re.match(r"^([A-Z]+\d{4})", model.upper())
         if m:
             return m.group(1)
-        # fallback: prefix before '-'
         return model.split("-")[0].upper()
 
-    # group -> models
-    families = defaultdict(list)
-    for model in models:
-        families[family_key(model)].append(model)
+    catmap = load_category_map()
 
-    # Index: show families (5301/5302/5303) first
-    fam_names = sorted(families.keys())
+    # big -> sub -> models
+    big_map = defaultdict(lambda: defaultdict(list))
+    for model in models:
+        fam = family_key(model)
+        big, sub = classify_model_manual(model, fam, catmap)
+        big_map[big][sub].append(model)
+
+    big_names = sorted(big_map.keys())
+
+    # Index: big categories
     index_parts = [
         "<!doctype html>",
         "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
         "<title>Photo Library</title>",
         "<style>"
-        "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:20px auto;padding:0 16px}"
-        ".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}"
+        "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:900px;margin:18px auto;padding:0 14px}"
+        ".list{display:flex;flex-direction:column;gap:16px}"
         ".muted{color:#666;font-size:14px}"
-        ".card{border:1px solid #e9e9e9;border-radius:16px;overflow:hidden;background:#fff}"
-        ".card a{display:block;padding:18px;text-decoration:none;color:inherit}"
-        ".card strong{font-size:20px;letter-spacing:0.2px}"
-        ".card .meta{margin-top:8px}"
+        ".card{border:1px solid #e9e9e9;border-radius:18px;overflow:hidden;background:#fff}"
+        ".card a{display:block;padding:20px;text-decoration:none;color:inherit}"
+        ".card strong{font-size:24px}"
+        ".card .meta{margin-top:6px}"
         ".card:active{transform:scale(0.99)}"
-        "@media (max-width:520px){.grid{grid-template-columns:1fr} .card a{padding:20px} .card strong{font-size:22px}}"
         "</style>",
         "</head><body>",
         "<h1>Photo Library</h1>",
-        "<p class='muted'>首页按系列分类（如 D5301 / D5302 / D5303）。点大卡片进入系列，再点缩略图看照片。</p>",
-        "<h2>Series</h2>",
-        "<div class='grid'>",
+        "<p class='muted'>首页先选大类（你可以在 output/category-map.json 手动调整每个型号的归类）。</p>",
+        "<h2>Categories</h2>",
+        "<div class='list'>",
     ]
 
-    for fam in fam_names:
-        total_imgs = sum(len(by_model[m]) for m in families[fam])
-        href = f"series/{html_escape(fam)}.html"
+    for big in big_names:
+        total_models = sum(len(big_map[big][sub]) for sub in big_map[big])
+        total_imgs = sum(len(by_model[m]) for sub in big_map[big] for m in big_map[big][sub])
+        href = f"cats/{html_escape(big)}.html"
         index_parts.append(
             f"<div class='card'><a href='{href}'>"
-            f"<strong>{html_escape(fam)}</strong>"
-            f"<div class='meta muted'>{len(families[fam])} models · {total_imgs} photos</div>"
+            f"<strong>{html_escape(big)}</strong>"
+            f"<div class='meta muted'>{total_models} models · {total_imgs} photos</div>"
             f"</a></div>"
         )
 
     index_parts += ["</div>", "</body></html>"]
     write_file(SITE / "index.html", "\n".join(index_parts))
 
-    # Family pages: list models inside
-    for fam in fam_names:
+    # Big pages: list subs (series)
+    for big in big_names:
+        subs = sorted(big_map[big].keys())
         parts = [
             "<!doctype html>",
             "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
-            f"<title>{html_escape(fam)} - Photo Library</title>",
-            "<style>"
-            "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:900px;margin:18px auto;padding:0 14px}"
-            ".list{display:flex;flex-direction:column;gap:16px}"
-            ".muted{color:#666;font-size:14px}"
-            ".card{border:1px solid #e9e9e9;border-radius:18px;overflow:hidden;background:#fff}"
-            ".card-link{display:block;text-decoration:none;color:inherit}"
-            ".thumb img{width:100%;height:240px;object-fit:cover;display:block}"
-            ".body{padding:18px}"
-            ".body strong{font-size:22px}"
-            ".body .muted{margin-top:6px}"
-            ".card:active{transform:scale(0.99)}"
-            "@media (max-width:520px){.thumb img{height:260px} .body{padding:20px} .body strong{font-size:24px}}"
-            "</style>",
+            f"<title>{html_escape(big)} - Photo Library</title>",
+            "<style>body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:900px;margin:18px auto;padding:0 14px} .list{display:flex;flex-direction:column;gap:16px} .card{border:1px solid #e9e9e9;border-radius:18px;overflow:hidden;background:#fff} .card a{display:block;padding:20px;text-decoration:none;color:inherit} .card strong{font-size:22px} .muted{color:#666;font-size:14px;margin-top:6px} .card:active{transform:scale(0.99)}</style>",
             "</head><body>",
             "<p><a href='../index.html'>← Back</a></p>",
-            f"<h1>Series: {html_escape(fam)}</h1>",
+            f"<h1>{html_escape(big)}</h1>",
             "<div class='list'>",
         ]
-        for model in sorted(families[fam]):
-            count = len(by_model[model])
-            href = f"../models/{html_escape(model)}.html"
-            # Use the first photo as thumbnail.
-            first = by_model[model][0]
-            base = Path(first.name).stem
-            thumb = f"../assets/{html_escape(model)}/thumb/{html_escape(base)}.jpg"
+        for sub in subs:
+            total_imgs = sum(len(by_model[m]) for m in big_map[big][sub])
+            href = f"{html_escape(big)}/{html_escape(sub)}.html"
             parts.append(
-                f"<div class='card'>"
-                f"<a class='card-link' href='{href}'>"
-                f"<div class='thumb'><img src='{thumb}' loading='lazy' /></div>"
-                f"<div class='body'>"
-                f"<strong>{html_escape(model)}</strong>"
-                f"<div class='muted'>{count} photos</div>"
-                f"</div>"
-                f"</a>"
-                f"</div>"
+                f"<div class='card'><a href='{href}'>"
+                f"<strong>{html_escape(sub)}</strong>"
+                f"<div class='muted'>{len(big_map[big][sub])} models · {total_imgs} photos</div>"
+                f"</a></div>"
             )
         parts += ["</div>", "</body></html>"]
-        write_file(SITE / "series" / f"{fam}.html", "\n".join(parts))
+        write_file(SITE / "cats" / f"{big}.html", "\n".join(parts))
+
+    # Sub pages: big + series -> model cards (big tappable)
+    for big in big_names:
+        for sub in sorted(big_map[big].keys()):
+            model_list = sorted(big_map[big][sub])
+            parts = [
+                "<!doctype html>",
+                "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
+                f"<title>{html_escape(big)} / {html_escape(sub)} - Photo Library</title>",
+                "<style>"
+                "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:900px;margin:18px auto;padding:0 14px}"
+                ".list{display:flex;flex-direction:column;gap:16px}"
+                ".muted{color:#666;font-size:14px}"
+                ".card{border:1px solid #e9e9e9;border-radius:18px;overflow:hidden;background:#fff}"
+                ".card-link{display:block;text-decoration:none;color:inherit}"
+                ".thumb img{width:100%;height:260px;object-fit:cover;display:block}"
+                ".body{padding:20px}"
+                ".body strong{font-size:24px}"
+                ".body .muted{margin-top:6px}"
+                ".card:active{transform:scale(0.99)}"
+                "</style>",
+                "</head><body>",
+                f"<p><a href='../{html_escape(big)}.html'>← Back</a></p>",
+                f"<h1>{html_escape(big)} / {html_escape(sub)}</h1>",
+                "<div class='list'>",
+            ]
+            for model in model_list:
+                href = f"../../models/{html_escape(model)}.html"
+                first = by_model[model][0]
+                base = Path(first.name).stem
+                thumb = f"../../assets/{html_escape(model)}/thumb/{html_escape(base)}.jpg"
+                count = len(by_model[model])
+                parts.append(
+                    f"<div class='card'>"
+                    f"<a class='card-link' href='{href}'>"
+                    f"<div class='thumb'><img src='{thumb}' loading='lazy' /></div>"
+                    f"<div class='body'>"
+                    f"<strong>{html_escape(model)}</strong>"
+                    f"<div class='muted'>{count} photos</div>"
+                    f"</div>"
+                    f"</a>"
+                    f"</div>"
+                )
+            parts += ["</div>", "</body></html>"]
+            write_file(SITE / "cats" / big / f"{sub}.html", "\n".join(parts))
 
     for model in models:
         files = by_model[model]

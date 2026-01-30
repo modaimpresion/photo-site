@@ -1,0 +1,11 @@
+{
+  "_meta": {
+    "note": "Edit this file to manually classify models. big: 上衣|裤子|连衣裙|套装|其他. sub is optional.",
+    "version": 1
+  },
+  "defaults": {
+    "big": "套装"
+  },
+  "models": {
+  }
+}

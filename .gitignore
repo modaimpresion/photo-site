@@ -1,8 +1,9 @@
 # user uploads
 inbox/
 
-# build artifacts (we publish /docs, keep it tracked)
-output/
+# build artifacts
+# output/ holds local caches + manual classification map (tracked as needed)
+output/ocr-cache.json
 
 # mac
 .DS_Store
