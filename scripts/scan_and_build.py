@@ -24,7 +24,7 @@ INBOX = ROOT / "inbox"
 SITE = ROOT / "docs"
 ASSETS = SITE / "assets"
 
-IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
 
 MODEL_RE = re.compile(r"(?i)(?:model|型号|type)[\s_\-:]*([A-Za-z0-9][A-Za-z0-9\-_.]{1,32})")
 
