@@ -26,7 +26,11 @@ ASSETS = SITE / "assets"
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
 
+# Extract model codes like D5301-1 / ABC123 etc.
 MODEL_RE = re.compile(r"(?i)(?:model|型号|type)[\s_\-:：]*([A-Za-z0-9][A-Za-z0-9\-_.]{1,32})")
+
+# Also accept bare model codes at start of filename like: D5301-1.HEIC
+BARE_MODEL_PREFIX_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9\-_.]{1,32})$")
 
 # Cache OCR results to avoid rescanning the same files every build.
 OCR_CACHE_PATH = ROOT / "output" / "ocr-cache.json"
@@ -38,6 +42,13 @@ def guess_model_from_filename(name: str) -> str:
         return m.group(1)
 
     base = Path(name).stem
+
+    # If filename is exactly a model code, accept it.
+    if BARE_MODEL_PREFIX_RE.match(base):
+        # But ignore camera roll defaults.
+        if re.match(r"(?i)^img_\d+$", base):
+            return "unknown"
+        return base
 
     # Ignore generic camera roll names.
     if re.match(r"(?i)^img_\d+$", base):
