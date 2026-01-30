@@ -359,22 +359,22 @@ def main():
             "<html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>",
             f"<title>{html_escape(fam)} - Photo Library</title>",
             "<style>"
-            "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:1100px;margin:20px auto;padding:0 16px}"
-            ".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}"
+            "body{font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;max-width:900px;margin:18px auto;padding:0 14px}"
+            ".list{display:flex;flex-direction:column;gap:16px}"
             ".muted{color:#666;font-size:14px}"
-            ".card{border:1px solid #e9e9e9;border-radius:16px;overflow:hidden;background:#fff}"
-            ".card a{display:block;text-decoration:none;color:inherit}"
-            ".thumb{display:block}"
-            ".thumb img{width:100%;height:190px;object-fit:cover;display:block}"
-            ".card-body{padding:16px}"
-            ".card-body strong{font-size:18px}"
+            ".card{border:1px solid #e9e9e9;border-radius:18px;overflow:hidden;background:#fff}"
+            ".card-link{display:block;text-decoration:none;color:inherit}"
+            ".thumb img{width:100%;height:240px;object-fit:cover;display:block}"
+            ".body{padding:18px}"
+            ".body strong{font-size:22px}"
+            ".body .muted{margin-top:6px}"
             ".card:active{transform:scale(0.99)}"
-            "@media (max-width:520px){.grid{grid-template-columns:1fr} .thumb img{height:220px} .card-body{padding:18px} .card-body strong{font-size:20px}}"
+            "@media (max-width:520px){.thumb img{height:260px} .body{padding:20px} .body strong{font-size:24px}}"
             "</style>",
             "</head><body>",
             "<p><a href='../index.html'>← Back</a></p>",
             f"<h1>Series: {html_escape(fam)}</h1>",
-            "<div class='grid'>",
+            "<div class='list'>",
         ]
         for model in sorted(families[fam]):
             count = len(by_model[model])
@@ -385,10 +385,12 @@ def main():
             thumb = f"../assets/{html_escape(model)}/thumb/{html_escape(base)}.jpg"
             parts.append(
                 f"<div class='card'>"
-                f"<a class='thumb' href='{href}'><img src='{thumb}' loading='lazy' /></a>"
-                f"<a class='card-body' href='{href}'>"
+                f"<a class='card-link' href='{href}'>"
+                f"<div class='thumb'><img src='{thumb}' loading='lazy' /></div>"
+                f"<div class='body'>"
                 f"<strong>{html_escape(model)}</strong>"
                 f"<div class='muted'>{count} photos</div>"
+                f"</div>"
                 f"</a>"
                 f"</div>"
             )
